@@ -1,0 +1,35 @@
+# ============ 智能分析助手 · 后端依赖清单 ============
+# 说明：版本已按实际安装锁定（==），保证可复现。
+# 安装方式：pip install -r requirements.txt
+
+# --- Web 框架 ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# --- 数据校验 ---
+pydantic==2.10.4
+
+# --- 数据层（ORM）---
+SQLAlchemy==2.1.5
+
+# --- SQL 安全校验 ---
+sqlglot==30.23.0
+
+# --- LLM 接入（DeepSeek，OpenAI 兼容）---
+langchain-openai==1.7.2
+langchain-core==1.6.12
+python-dotenv==1.2.4
+
+# --- Agent 状态机（LangGraph，含 checkpointer）---
+langgraph==1.2.16
+langgraph-checkpoint==4.3.0
+
+# --- 测试（企业级升级 · P0）---
+pytest==9.1.1
+pytest-asyncio==1.4.0
+httpx==0.28.1
+
+# --- 认证与安全（企业级升级 · P0）---
+python-jose[cryptography]==3.5.0
+bcrypt==5.0.0
+python-multipart==0.0.32

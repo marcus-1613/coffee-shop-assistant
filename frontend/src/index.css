@@ -1,0 +1,15 @@
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: #fafafa;
+  color: #333;
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+}

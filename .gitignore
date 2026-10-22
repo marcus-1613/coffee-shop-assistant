@@ -1,0 +1,33 @@
+# ============ Git 忽略文件 ============
+# 这些文件/目录不会被提交到版本库
+
+# 敏感信息（API Key 等）
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# 数据库文件
+*.db
+
+# 日志
+logs/
+
+# 死代码备份（本地保留，不进版本库）
+_dead_code_backup/
+
+# IDE
+.idea/
+.vscode/
+
+# 前端
+node_modules/
+dist/
+
+# 脚手架残留（Vite 默认生成，未被使用）
+frontend/README.md
+frontend/src/assets/hero.png
+frontend/src/assets/react.svg
+frontend/src/assets/vite.svg
