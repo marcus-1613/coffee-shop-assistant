@@ -46,13 +46,9 @@ class DataSourceTool(Tool):
         # （优先用 action_examples，缺省则回退到 schema 的查询类型行）
         examples = getattr(self._source, "action_examples", None)
         params = {"action": examples} if examples else {"action": "查询动作，格式见数据源 schema"}
-        # 天气数据源：额外声明 location / start_date / end_date 可选参数，
-        # 否则 LLM 只会生成 action，导致查错城市、查错日期（阶段四修复）。
-        if self._source.name == "open-meteo":
-            params["location"] = "城市名（如 南昌/北京/上海），指定查询哪个城市的天气"
-            params["start_date"] = "起始日期 YYYY-MM-DD，查「明天」传明天的具体日期"
-            params["end_date"] = "结束日期 YYYY-MM-DD（可选）"
-            params["days"] = "预报天数（查「未来N天」时用，默认7）"
+        # 额外参数由数据源自己声明（extra_params），通用工具层不认识任何具体源。
+        # 这样加新数据源（如股票）时，只需让它覆写 extra_params，本类零改动。
+        params.update(self._source.extra_params())
         return params
 
     def run(self, **params) -> Dict[str, Any]:

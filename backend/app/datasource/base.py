@@ -44,6 +44,17 @@ class DataSource(ABC):
         """
         raise NotImplementedError
 
+    def extra_params(self) -> Dict[str, str]:
+        """声明本数据源在「查询动作」之外，还需要哪些额外查询参数。
+
+        返回 {参数名: 参数说明}。默认返回空字典，表示除了 action 外不需要
+        额外参数（如疫情源）。需要城市/日期等条件的源（如天气）覆写本方法。
+
+        这一设计让「参数说明」的职责归属于数据源自身，通用工具层
+        （DataSourceTool）无需认识任何具体数据源，符合开闭原则。
+        """
+        return {}
+
     @abstractmethod
     def query(self, sql_or_action: str, **params) -> Dict[str, Any]:
         """执行一次查询。

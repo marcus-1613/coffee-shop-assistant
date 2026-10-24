@@ -146,6 +146,17 @@ class TestDataSourceTool:
         assert "end_date" in params
         assert "action" in params
 
+    def test_source_without_extra_params_declares_only_action(self):
+        """没声明 extra_params 的数据源，参数说明只有 action（阶段四重构）。
+
+        验证「额外参数」职责已下沉到数据源：通用工具层不再针对某个源硬编码，
+        默认 extra_params 返回空，通用包装器不认识任何具体源（开闭原则）。
+        """
+        tool = DataSourceTool(_FakeSource())
+        params = tool.parameters()
+        # 假数据源没覆写 extra_params，应只有 action 一个参数
+        assert set(params.keys()) == {"action"}
+
 
 class TestAnswerTool:
     """回答工具：把大模型回答包装成统一调用"""

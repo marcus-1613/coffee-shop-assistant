@@ -190,10 +190,21 @@ class OpenMeteoSource(DataSource):
         """查询动作的格式说明（供工具清单喂给 LLM 选工具）。"""
         return (
             '天气查询动作：用 "forecast" 查未来预报；'
-            '用 "history:2026-10-15~2026-10-22" 查历史某段天气（日期范围用 ~ 连接）。\n'
-            '重要：查某城市天气要带 location 参数（如 location=南昌）；'
-            '查「明天/今天/某天」要把相对日期换算成具体日期，用 start_date=YYYY-MM-DD 参数指定。'
+            '用 "history:2026-10-15~2026-10-22" 查历史某段天气（日期范围用 ~ 连接）。'
         )
+
+    def extra_params(self) -> Dict[str, str]:
+        """天气源除了 action 外，还需要城市/日期等查询条件（阶段四重构）。
+
+        之前这些参数说明用 if 硬编码在 DataSourceTool.parameters() 里，
+        导致通用工具层认识具体数据源（违反开闭原则）。现下沉到数据源自身声明。
+        """
+        return {
+            "location": "城市名（如 南昌/北京/上海），指定查询哪个城市的天气",
+            "start_date": "起始日期 YYYY-MM-DD，查「明天」传明天的具体日期",
+            "end_date": "结束日期 YYYY-MM-DD（可选）",
+            "days": "预报天数（查「未来N天」时用，默认7）",
+        }
 
     def query(self, sql_or_action: str, **params) -> Dict[str, Any]:
         """执行查询。sql_or_action 是「动作 + 参数」描述，如：

@@ -64,12 +64,18 @@ class TestOpenMeteoSource:
         src = OpenMeteoSource()
         assert "~" in src.action_examples()
 
-    def test_action_examples_mentions_location_and_start_date(self):
-        """action_examples 必须提示 location 和 start_date（查城市/查明天）。"""
+    def test_extra_params_declares_location_and_start_date(self):
+        """额外查询参数由 extra_params 声明（阶段四重构）。
+
+        之前 location/start_date 说明散落在 action_examples 和
+        DataSourceTool.parameters() 两处，现在统一收敛到 extra_params。
+        """
         src = OpenMeteoSource()
-        examples = src.action_examples()
-        assert "location" in examples
-        assert "start_date" in examples
+        params = src.extra_params()
+        assert "location" in params
+        assert "start_date" in params
+        assert "end_date" in params
+        assert "days" in params
 
 
 class TestResolveCoords:
