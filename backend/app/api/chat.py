@@ -25,6 +25,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.agent.intent import IntentClassifier
 from app.agent import ToolRegistry, DataSourceTool, AnswerTool, SqliteTool, AgentNodes, build_graph
@@ -232,14 +233,21 @@ async def chat_stream(
 ):
     llm = DeepSeekLLM()
     classifier = IntentClassifier(llm=llm)
-    intent = classifier.classify(req.question)
+    # LLM 与数据库客户端都是同步调用；放到线程池，避免一个慢请求
+    # 阻塞 FastAPI 事件循环并拖慢其他用户的 SSE 连接。
+    intent = await run_in_threadpool(classifier.classify, req.question)
 
     # 消息持久化仓库（可选登录：登录了才落库）
     repo = MessageRepository(db)
     user_id = current_user.id if current_user else None
 
     # 多轮记忆：捞取该用户（或匿名会话）最近 N 轮历史（滑动窗口 + 按用户/会话隔离）
-    history = repo.get_recent_history(user_id, limit=5, session_id=req.session_id)
+    history = await run_in_threadpool(
+        repo.get_recent_history,
+        user_id,
+        limit=5,
+        session_id=req.session_id,
+    )
     history_context = _build_history_context(history)
 
     # ---- 闲聊链路 ----

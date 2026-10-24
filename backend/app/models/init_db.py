@@ -18,7 +18,7 @@ from app.models.database import engine
 def create_tables():
     """根据模型定义创建所有数据库表"""
     Base.metadata.create_all(bind=engine)
-    print("✅ 数据表已创建")
+    print("[OK] 数据表已创建")
 
 
 if __name__ == "__main__":
@@ -26,4 +26,4 @@ if __name__ == "__main__":
     # 复用 seed_cafe 灌入咖啡店经营数据（幂等，已有数据则跳过）
     from app.models.seed_cafe import seed_cafe
     seed_cafe()
-    print("🎉 数据库初始化完成")
+    print("[OK] 数据库初始化完成")

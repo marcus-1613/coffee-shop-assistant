@@ -126,6 +126,20 @@ class AgentNodes:
             state["error"] = error
             return state
 
+        # 工具可能不抛异常，而是用结构化结果报告业务错误
+        # （例如 Text2SQL 重试耗尽）。这类结果不能当成功继续汇总。
+        result_error = (
+            result.get("error")
+            or (result.get("meta") or {}).get("error")
+        )
+        if result_error:
+            state["results"].append(result)
+            error = f"工具 {tool_name} 执行失败：{result_error}"
+            self._audit.log("executor", error, tool=tool_name, error=result_error)
+            state["status"] = "failed"
+            state["error"] = error
+            return state
+
         self._audit.log(
             "executor",
             f"执行第 {step_index + 1} 步：{tool_name}",

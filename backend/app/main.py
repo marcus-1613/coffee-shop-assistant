@@ -7,6 +7,7 @@
 运行方式（在 backend 目录下）：
     .venv/Scripts/python.exe -m uvicorn app.main:app --reload
 """
+import os
 import time
 
 from fastapi import FastAPI, Request
@@ -30,13 +31,22 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# 允许前端（React，跑在不同端口）跨域访问
+# 浏览器只允许配置过的前端来源跨域访问。Bearer Token 不依赖 Cookie，
+# 因此关闭 credentials，避免“通配来源 + 凭证”这一不安全的组合。
+_cors_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:3008,http://127.0.0.1:3008",
+    ).split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # 注册聊天路由（阶段 6：SSE 流式接口）

@@ -26,7 +26,7 @@ class TestText2SqlEngine:
         而不是无限循环。
         """
         # 用一个「永远生成危险 SQL」的假模型（DROP 会被安全校验拦截）
-        bad_llm = MockLLM(preset_sql="DROP TABLE patients")
+        bad_llm = MockLLM(preset_sql="DROP TABLE cafe_products")
 
         engine = Text2SqlEngine(llm=bad_llm, max_retries=3)
 
@@ -52,8 +52,8 @@ class TestText2SqlEngine:
             def generate_sql(self, prompt):
                 self.calls += 1
                 if self.calls == 1:
-                    return "DROP TABLE patients"  # 第一次故意错
-                return "SELECT COUNT(*) AS total FROM patients"  # 第二次对
+                    return "DROP TABLE cafe_products"  # 第一次故意错
+                return "SELECT COUNT(*) AS total FROM cafe_products"  # 第二次对
 
         engine = Text2SqlEngine(llm=FlakyLLM(), max_retries=3)
 
@@ -67,7 +67,7 @@ class TestText2SqlEngine:
 
     def test_first_try_success_no_retry(self):
         """模型第一次就生成正确 SQL 时，重试次数应为 0。"""
-        good_llm = MockLLM(preset_sql="SELECT COUNT(*) AS total FROM patients")
+        good_llm = MockLLM(preset_sql="SELECT COUNT(*) AS total FROM cafe_products")
 
         engine = Text2SqlEngine(llm=good_llm, max_retries=3)
 
@@ -88,7 +88,7 @@ class TestSqlSafetyValidatorDirect:
         而不是直接执行。
         """
         # 注入一条「语法正确但是写操作」的 SQL
-        evil_llm = MockLLM(preset_sql="DELETE FROM patients")
+        evil_llm = MockLLM(preset_sql="DELETE FROM cafe_products")
 
         engine = Text2SqlEngine(llm=evil_llm, max_retries=2)
 

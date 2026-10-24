@@ -15,6 +15,7 @@
 关键：订单的 weather 字段是「天气 × 销量」关联分析（备货预测）的基础。
 这里先内置一份「天气快照」（做法 A 的过渡：第 2 步会用真实天气 API 回填）。
 """
+import random
 from datetime import datetime, timedelta
 
 from app.models.base import Base
@@ -22,7 +23,29 @@ from app.models.cafe import Member, Product, Order, OrderItem
 from app.models.database import engine, SessionLocal
 
 
-def seed_cafe():
+def _weather_product_weight(product: Product, weather: str) -> float:
+    """模型演示用的可解释天气偏好权重。
+
+    这不是因果推断，只是让示例数据具备可观察的业务结构，
+    避免天气与销量完全随机后仍对外宣称“天气洞察”。
+    """
+    hot = {"热拿铁", "热可可", "卡布奇诺"}
+    cold = {"冰美式", "冰拿铁", "茉莉绿茶"}
+
+    if weather == "雨":
+        if product.name in hot:
+            return 5.0
+        if product.name in cold:
+            return 0.4
+    elif weather == "晴":
+        if product.name in cold:
+            return 5.0
+        if product.name in hot:
+            return 0.8
+    return 1.5
+
+
+def seed_cafe(reference_time: datetime | None = None):
     # 建表（确保咖啡店表存在）
     Base.metadata.create_all(bind=engine)
 
@@ -30,7 +53,7 @@ def seed_cafe():
     try:
         # 幂等：已有数据则跳过
         if db.query(Product).first():
-            print("ℹ️  咖啡店数据已存在，跳过灌入")
+            print("[INFO] 咖啡店数据已存在，跳过灌入")
             return
 
         # ---- 1. 饮品 ----
@@ -64,11 +87,16 @@ def seed_cafe():
 
         # ---- 3. 订单 + 明细 ----
         # 生成「过去 30 天」的订单，天气按日期规律分布（晴/雨/阴交替）
-        # 用固定种子保证可复现
-        import random
+        # 固定种子保证数量可复现；参考时间默认取当前时间，
+        # 避免演示数据随着日历推移逐渐变成“几个月前”。
         rng = random.Random(42)
 
-        today = datetime(2026, 10, 22, 12, 0)  # 对齐「现在」的时间
+        today = (reference_time or datetime.now()).replace(
+            hour=12,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
         product_list = products
         order_count = 0
 
@@ -88,9 +116,20 @@ def seed_cafe():
                 # 会员：70% 概率是会员
                 member = rng.choice(members) if rng.random() < 0.7 else None
 
-                # 订单里的商品（1-3 种）
-                n_items = rng.randint(1, 3)
-                chosen = rng.sample(product_list, n_items)
+                # 订单里的商品（1-3 种），按天气调整偏好权重。
+                # 雨天的热饮和晴天的冰饮更容易被选中，使演示数据
+                # 真正具有可供 Text2SQL 分析的结构。
+                n_items = min(rng.randint(1, 3), len(product_list))
+                available = list(product_list)
+                chosen = []
+                for _ in range(n_items):
+                    weights = [
+                        _weather_product_weight(product, weather)
+                        for product in available
+                    ]
+                    product = rng.choices(available, weights=weights, k=1)[0]
+                    chosen.append(product)
+                    available.remove(product)
 
                 total = 0.0
                 order = Order(
@@ -116,7 +155,7 @@ def seed_cafe():
                 order.total_amount = round(total, 2)
 
         db.commit()
-        print(f"✅ 咖啡店数据已灌入：{len(products)} 款饮品，{len(members)} 位会员，{order_count} 笔订单")
+        print(f"[OK] 咖啡店数据已灌入：{len(products)} 款饮品，{len(members)} 位会员，{order_count} 笔订单")
 
         # 统计天气分布，帮助理解「天气 × 销量」规律
         from sqlalchemy import func
@@ -133,4 +172,4 @@ def seed_cafe():
 
 if __name__ == "__main__":
     seed_cafe()
-    print("🎉 咖啡店数据初始化完成")
+    print("[OK] 咖啡店数据初始化完成")

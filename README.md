@@ -1,10 +1,19 @@
 # ☕ 咖啡店经营助手 · 多数据源智能 Agent
 
-> 一个「店长的数据副手」：用大白话问销量、查毛利、结合实时天气给备货建议。技术上是一个 **Plan-and-Execute 多工具 Agent**——大模型不写死任何 if-else，而是根据问题**自主规划、选工具、查多源数据、反思纠错、汇总成带图表的分析报告**。
+> 一个「店长的数据副手」：用大白话问销量、查毛利、结合天气预报和历史销量辅助备货分析。技术上是一个 **Plan-and-Execute 多工具 Agent**——模型根据问题**规划工具、组合多源数据、处理失败并生成带图表的数据报告**。
 >
 > 一句话：**把「数据散落在经营库 / 天气 / 疫情三个异构源里」这件事，交给一个能自己查、自己纠错、自己解释的 Agent。**
 
-[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB)](https://www.python.org/) [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688)](https://fastapi.tiangolo.com/) [![LangGraph](https://img.shields.io/badge/LangGraph-0.2-1C3C3C)](https://langchain-ai.github.io/langgraph/) [![React](https://img.shields.io/badge/React-18-61DAFB)](https://react.dev/) [![DeepSeek](https://img.shields.io/badge/LLM-DeepSeek-4D6BFE)](https://platform.deepseek.com/) [![Tests](https://img.shields.io/badge/tests-133%20passed-639922)]()
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB)](https://www.python.org/) [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688)](https://fastapi.tiangolo.com/) [![LangGraph](https://img.shields.io/badge/LangGraph-1.2-1C3C3C)](https://langchain-ai.github.io/langgraph/) [![React](https://img.shields.io/badge/React-19-61DAFB)](https://react.dev/) [![DeepSeek](https://img.shields.io/badge/LLM-DeepSeek-4D6BFE)](https://platform.deepseek.com/) [![CI](https://github.com/marcus-1613/coffee-shop-assistant/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/marcus-1613/coffee-shop-assistant/actions/workflows/ci.yml)
+
+![咖啡店经营助手界面](assets/demo.png)
+
+**可验证的工程能力**
+
+- `FastAPI + LangGraph + React` 全栈实现，支持 SSE 流式进度、多轮会话与 SVG 图表；
+- Text2SQL 经过 SQL AST 校验；工具返回业务错误时进入 REPLAN，而不是把空结果当成功；
+- 后端 136 项测试使用独立临时数据库、Mock LLM 和 Mock 数据源，CI 同时构建前端；
+- `compose.yaml` 可一键启动前后端，无需手工配置 Node/Python 环境。
 
 ---
 
@@ -88,7 +97,7 @@ params.update(self._source.extra_params())   # 多态替代 if-else
 用户提问
    │
    ▼
-┌─────────────┐   React + Vite（端口 5173）
+┌─────────────┐   React + Vite（端口 3008）
 │  前端层      │   收集输入、渲染 SSE 事件、画 SVG 图表
 └─────────────┘
    │ SSE 流式
@@ -107,7 +116,7 @@ params.update(self._source.extra_params())   # 多态替代 if-else
    ▼
 ┌─────────────┐   ToolRegistry（工具名册，可热插拔）
 │  工具层      │   SqliteTool / DataSourceTool(天气/疫情) / AnswerTool
-│  app/tools/  │
+│ agent/tools.py│
 └─────────────┘
    │
    ├── Text2SQL 层（app/text2sql/）：自然语言 → SQL → 三道安全校验 → 执行
@@ -149,7 +158,7 @@ params.update(self._source.extra_params())   # 多态替代 if-else
 
 | 组件 | 用途 |
 |------|------|
-| React 18 + Vite | 框架与构建 |
+| React 19 + Vite | 框架与构建 |
 | 原生 EventSource | SSE 流式接收（零第三方库） |
 | 手写 SVG 图表 | 折线图 / 柱状图（不引入 ECharts，见「设计取舍」） |
 
@@ -166,7 +175,7 @@ params.update(self._source.extra_params())   # 多态替代 if-else
 ## 📁 项目结构
 
 ```
-smart-assistant-python/
+coffee-shop-assistant/
 ├── backend/
 │   ├── app/
 │   │   ├── agent/          # 多工具 Agent：状态机(graph/nodes)、工具(tools/tool_impls)、
@@ -178,12 +187,13 @@ smart-assistant-python/
 │   │   ├── models/         # SQLAlchemy ORM + 数据库初始化
 │   │   ├── services/       # 消息持久化（多轮记忆）
 │   │   └── text2sql/       # Text2SQL：schema 提示 + SQL 安全 + 执行器 + 自我纠错
-│   ├── tests/              # 13 个测试文件，133 条用例
+│   ├── tests/              # 独立测试数据库 + 回归测试
 │   ├── requirements.txt    # 依赖锁版本
 │   └── .env.example        # 环境变量模板
-├── frontend/               # React + Vite
+├── frontend/               # React + Vite + 登录/历史记录
 │   └── src/App.jsx         # 聊天界面 + 手写 SVG 图表
-└── docs/                   # 作战地图 / PRD / ADR / bug 复盘
+├── docs/                   # 作战地图 / PRD / ADR / bug 复盘
+└── compose.yaml            # 前端 + 后端一键启动
 ```
 
 ---
@@ -196,7 +206,19 @@ smart-assistant-python/
 - Node.js 18+
 - 一个 DeepSeek API Key（[platform.deepseek.com](https://platform.deepseek.com) 申请）
 
-### 1. 配置环境变量
+### 方式一：Docker Compose（推荐）
+
+```bash
+cp .env.example .env      # Windows: copy .env.example .env
+# 编辑 .env，填入 DEEPSEEK_API_KEY 和随机 SECRET_KEY
+docker compose up --build
+```
+
+打开 http://localhost:3008。首次启动会自动初始化演示数据库，数据保存在 Docker volume 中。
+
+### 方式二：本地开发
+
+#### 1. 配置环境变量
 
 ```bash
 cd backend
@@ -204,7 +226,10 @@ cp .env.example .env      # Windows: copy .env.example .env
 # 编辑 .env，填入 DEEPSEEK_API_KEY 和 SECRET_KEY
 ```
 
-### 2. 启动后端
+`SECRET_KEY` 不能保留示例值；否则应用会拒绝启动。可运行
+`python -c "import secrets; print(secrets.token_hex(32))"` 生成。
+
+#### 2. 启动后端
 
 ```bash
 cd backend
@@ -221,12 +246,12 @@ python -m venv .venv
 
 验证：浏览器打开 http://127.0.0.1:8000/health 应返回 `{"status":"healthy"}`。
 
-### 3. 启动前端
+#### 3. 启动前端
 
 ```bash
 cd frontend
-npm install
-npm run dev   # 默认 http://localhost:5173
+npm ci
+npm run dev   # 默认 http://localhost:3008
 ```
 
 浏览器打开前端地址即可提问。接口文档在 http://127.0.0.1:8000/docs。
@@ -239,12 +264,12 @@ npm run dev   # 默认 http://localhost:5173
 
 ```bash
 cd backend
-.venv/Scripts/python.exe -m pytest -q   # 133 passed
+.venv/Scripts/python.exe -m pytest -q
 ```
 
-133 个用例覆盖：SQL 安全校验（三道防线）、意图分类、通用出图引擎、工具与数据源、JWT 认证与资源隔离、多轮记忆（匿名会话 + 登录隔离）、天气日期/城市解析、消息持久化等。
+测试覆盖 SQL 安全校验、Agent 正常执行与 REPLAN、意图分类、通用出图、工具与数据源、JWT 认证与资源隔离、多轮记忆、天气日期/城市解析和消息持久化。
 
-> 测试通过独立数据库 + Mock 数据源，不依赖外网、不污染演示数据。
+> `tests/conftest.py` 会在临时目录创建独立数据库。数据源新鲜度接口不主动请求外网；需要真实 API 的行为使用 Mock 验证，因此测试可在 CI 中稳定运行。
 
 ---
 
@@ -278,8 +303,10 @@ cd backend
 ## 📝 设计边界与取舍（诚实披露）
 
 - **疫情数据**：Disease.sh 多数国家已停更于 2023，属历史数据。**保留它的目的不是「查实时疫情」，而是作为「多数据源热插拔」架构的证据**——证明系统不依赖单一数据源。
-- **经营数据**：本地 SQLite 为内置演示数据，非真实门店。
-- **聊天接口当前为「可选登录」**：未登录用户走匿名会话。这是**有意为之的取舍**——降低试用门槛；若正式上线给真店长用，应改为「强制登录」让 JWT + owner 隔离对主链路生效（已记录为待办）。
+- **经营数据**：本地 SQLite 为合成演示数据，非真实门店。天气会影响演示商品采样权重，便于验证“天气 × 品类”分析链路；它不代表因果结论。
+- **合成数据检查**：运行 `python -m scripts.analyze_demo_signal` 可复现晴/阴/雨三组的热饮占比。本次生成的演示库中，晴天热饮占比约 22.5%，雨天约 100%；样本量很小，仅用于验证分析链路，不用于证明真实经营规律。
+- **备货能力边界**：系统基于历史销量与天气预报给出辅助分析，**当前没有需求预测模型，也没有接入真实库存、原料消耗、供应商交期和损耗数据**，因此不构成自动采购建议。
+- **认证**：前端已提供注册、登录和历史记录入口；聊天仍允许匿名会话，登录后消息按 `user_id` 隔离。
 - **图表不引入 ECharts**：手写 SVG 折线/柱状图，够用且零依赖。图表是「锦上添花」，不为此背上一个前端图表库的重量。
 - **向量记忆（RAG）尚未实施**：卡点在于 DeepSeek 不提供 embedding API，需另选 embedding 方案；且咖啡店量级下 Milvus 属过度设计，更合适 FAISS/Chroma。**前提是先有「文字类资料」（会员偏好笔记、备货经验、配方手册）RAG 才有料可喂。**
 

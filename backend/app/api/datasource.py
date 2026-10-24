@@ -11,8 +11,11 @@
 这是「企业级升级 · 阶段一」的产物。
 """
 from fastapi import APIRouter, HTTPException
+from sqlalchemy import func
 
 from app.datasource import DiseaseShSource, OpenMeteoSource, DataSourceRegistry
+from app.models.cafe import Order
+from app.models.database import SessionLocal
 
 
 router = APIRouter()
@@ -63,64 +66,39 @@ def query_datasource(q: str, days: int = 90):
 
 @router.get("/datasource/freshness")
 def datasource_freshness():
-    """数据新鲜度：返回各数据源是否可用 + 最近可查到的日期。
+    """返回各数据源的新鲜度说明，不在页面加载时阻塞请求第三方。
 
-    诚实标注数据来源与性质（关键：疫情数据 2023 年已停更，必须让用户知道）：
-    - open-meteo：实时天气
-    - disease-sh：疫情数据（注意：多数国家数据停更于 2023）
-    - 本地经营库：内置示例数据
+    天气/疫情仍在实际查询时访问第三方；这个接口返回采样策略和
+    本地数据的最新时间，因此断网时也能快速展示来源边界。
     """
-    sources = []
-
-    # 天气数据源
+    db = SessionLocal()
     try:
-        weather = _registry.get("open-meteo")
-        result = weather.query("forecast", days=7)
-        rows = result.get("rows") or []
-        sources.append({
+        latest_order_time = db.query(func.max(Order.order_time)).scalar()
+    finally:
+        db.close()
+
+    sources = [
+        {
             "name": "open-meteo",
             "label": "天气",
             "status": "ok",
-            "updated_at": rows[0][0] if rows else "未知",
-            "note": "实时天气（Open-Meteo）",
-        })
-    except Exception:
-        sources.append({
-            "name": "open-meteo",
-            "label": "天气",
-            "status": "error",
             "updated_at": None,
-            "note": "天气数据源暂时不可用",
-        })
-
-    # 疫情数据源（诚实标注停更）
-    try:
-        disease = _registry.get("disease-sh")
-        result = disease.query("global")
-        meta = result.get("meta") or {}
-        sources.append({
+            "note": "Open-Meteo 实时预报与历史天气（按查询请求获取）",
+        },
+        {
             "name": "disease-sh",
             "label": "疫情",
+            "status": "stale",
+            "updated_at": None,
+            "note": "历史数据源；多数国家已于 2023 年停更",
+        },
+        {
+            "name": "sqlite",
+            "label": "经营数据",
             "status": "ok",
-            "updated_at": meta.get("updated_at"),
-            "note": "疫情数据（多数国家已停更于 2023）",
-        })
-    except Exception:
-        sources.append({
-            "name": "disease-sh",
-            "label": "疫情",
-            "status": "error",
-            "updated_at": None,
-            "note": "疫情数据源暂时不可用",
-        })
-
-    # 本地经营库
-    sources.append({
-        "name": "sqlite",
-        "label": "经营数据",
-        "status": "ok",
-        "updated_at": None,
-        "note": "本地示例经营库（仅作演示）",
-    })
+            "updated_at": latest_order_time.isoformat() if latest_order_time else None,
+            "note": "本地示例经营库（非真实门店数据）",
+        },
+    ]
 
     return {"sources": sources}

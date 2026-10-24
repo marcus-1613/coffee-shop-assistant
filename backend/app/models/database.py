@@ -9,17 +9,23 @@
 当前使用 SQLite（零配置，开箱即用）。
 未来切换 PostgreSQL 时，只需修改这里的连接串（这正是 ADR-003 的设计）。
 """
+import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-# 数据库连接串（SQLite 文件存在 backend 目录下）
-# 注意：check_same_thread=False 是为了配合 FastAPI 的多线程/异步特性
-DATABASE_URL = "sqlite:///./smart_assistant.db"
+# 默认使用本地 SQLite；部署和测试可通过 DATABASE_URL 注入独立存储。
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./smart_assistant.db")
 
 # 创建引擎
+_connect_args = (
+    {"check_same_thread": False}
+    if DATABASE_URL.startswith("sqlite")
+    else {}
+)
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False},  # SQLite 特有配置
+    connect_args=_connect_args,
     echo=False,  # 设为 True 可打印所有 SQL 语句（调试用）
 )
 
