@@ -12,6 +12,7 @@
 这是「企业级升级 · 阶段二（多工具 Agent）· 2-B」的产物。
 """
 from app.agent import ToolRegistry, DataSourceTool, AnswerTool, AgentNodes, build_graph
+from app.agent.tools import Tool
 from app.llm.provider import MockLLM
 from app.datasource.base import DataSource
 
@@ -50,6 +51,29 @@ class _FakeSource(DataSource):
             "rows": [["China", 1000]],
             "row_count": 1,
             "meta": {"kind": "country", "country": "China"},
+        }
+
+
+class _ErrorResultTool(Tool):
+    """A tool that reports a business error without raising."""
+
+    @property
+    def name(self):
+        return "structured-error"
+
+    @property
+    def description(self):
+        return "Returns a structured error"
+
+    def parameters(self):
+        return {}
+
+    def run(self, **params):
+        return {
+            "columns": [],
+            "rows": [],
+            "row_count": 0,
+            "meta": {"kind": "sqlite", "error": "SQL 重试耗尽"},
         }
 
 
@@ -163,6 +187,24 @@ class TestAgentGraph:
         # 达到 MAX_REPLAN=3 后放弃，状态 failed
         assert result["status"] == "failed"
         assert result["replan_count"] >= 3
+
+    def test_structured_tool_error_triggers_replan(self):
+        """工具返回 meta.error 时也应进入 REPLAN，而不是继续汇总。"""
+        llm = _PlannerLLM(
+            plan_json='{"tool": "structured-error", "params": {}}',
+            replan_json='{"tool": "answer", "params": {"prompt": "换一种方式回答"}}',
+            answer_text="已降级回答",
+        )
+        registry = ToolRegistry()
+        registry.register(_ErrorResultTool())
+        registry.register(AnswerTool(llm))
+        graph = build_graph(AgentNodes(llm=llm, registry=registry))
+
+        result = graph.invoke({"question": "查询经营数据"})
+
+        assert result["replan_count"] == 1
+        assert result["status"] == "success"
+        assert result["final_answer"] == "已降级回答"
 
 
 class TestDecisionRouting:

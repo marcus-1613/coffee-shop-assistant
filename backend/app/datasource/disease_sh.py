@@ -17,7 +17,7 @@ Disease.sh 数据源实现
 这是「企业级升级 · 阶段一」的产物。
 """
 import json
-import time
+from datetime import datetime
 from typing import Any, Dict, List
 from urllib.request import urlopen, Request
 from urllib.error import URLError
@@ -161,8 +161,15 @@ class DiseaseShSource(DataSource):
         for date_str, cases_val in cases_series.items():
             rows.append([date_str, cases_val])
 
-        # 计算数据最新日期（用于「数据新鲜度」标注——数据诚实）
-        latest_date = max(cases_series.keys()) if cases_series else None
+        # 日期字符串不能直接按字典序比较（9/9/23 会大于 10/1/23）。
+        def _parse_date(value: str) -> datetime:
+            try:
+                return datetime.strptime(value, "%m/%d/%y")
+            except ValueError:
+                return datetime.min
+
+        rows.sort(key=lambda row: _parse_date(row[0]))
+        latest_date = rows[-1][0] if rows else None
 
         return {
             "columns": ["date", "cases"],

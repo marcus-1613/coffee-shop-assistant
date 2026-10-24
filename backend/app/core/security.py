@@ -19,10 +19,23 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import bcrypt
+from dotenv import load_dotenv
 from jose import JWTError, jwt
 
-# 从环境变量读取密钥（生产环境必须保密，不能硬编码）
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
+# 从 .env 文件加载配置；生产环境应通过密钥管理服务注入。
+load_dotenv()
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+_INSECURE_SECRETS = {
+    "",
+    "dev-secret-key-change-in-production",
+    "please-generate-a-random-secret-key",
+    "replace-with-a-random-secret-key",
+}
+if not SECRET_KEY or SECRET_KEY in _INSECURE_SECRETS:
+    raise RuntimeError(
+        "SECRET_KEY 未配置或仍为示例值。请在 backend/.env 中生成随机密钥。"
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # token 有效期：24 小时
 

@@ -12,6 +12,7 @@
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, verify_password, create_access_token
@@ -22,19 +23,45 @@ from app.models.user import User
 router = APIRouter(prefix="/auth", tags=["认证"])
 
 
+class RegisterRequest(BaseModel):
+    """JSON registration payload with basic account validation."""
+
+    username: str = Field(min_length=3, max_length=50)
+    password: str = Field(min_length=8)
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("用户名不能为空")
+        if any(ch.isspace() for ch in value):
+            raise ValueError("用户名不能包含空白字符")
+        return value
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_length(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("密码不能超过 72 字节")
+        return value
+
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(
-    username: str,
-    password: str,
+    payload: RegisterRequest,
     db: Session = Depends(get_db),
 ):
     """注册新用户。用户名唯一，密码会被哈希后入库。"""
     # 检查用户名是否已存在
-    if db.query(User).filter(User.username == username).first():
+    if db.query(User).filter(User.username == payload.username).first():
         raise HTTPException(status_code=400, detail="用户名已被占用")
 
     # 密码哈希后入库（绝不存明文）
-    user = User(username=username, hashed_password=hash_password(password))
+    user = User(
+        username=payload.username,
+        hashed_password=hash_password(payload.password),
+    )
     db.add(user)
     db.commit()
     db.refresh(user)

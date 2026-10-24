@@ -49,7 +49,12 @@ def get_current_user(
         raise credentials_error
 
     # 3. 查数据库确认这个用户真实存在
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    try:
+        parsed_user_id = int(user_id)
+    except (TypeError, ValueError):
+        raise credentials_error
+
+    user = db.query(User).filter(User.id == parsed_user_id).first()
     if user is None:
         raise credentials_error
 
@@ -73,5 +78,9 @@ def get_current_user_optional(
     user_id = payload.get("sub")
     if user_id is None:
         return None
-    return db.query(User).filter(User.id == int(user_id)).first()
+    try:
+        parsed_user_id = int(user_id)
+    except (TypeError, ValueError):
+        return None
+    return db.query(User).filter(User.id == parsed_user_id).first()
 

@@ -33,7 +33,8 @@ class TestTTLCache:
 
     def test_expired_cache_returns_none(self):
         """过期后读取返回 None（并清理过期项）。"""
-        cache = TTLCache(ttl_seconds=0)  # ttl=0，立即过期
+        # 使用负 TTL，不依赖操作系统 time.time() 的时钟精度。
+        cache = TTLCache(ttl_seconds=-1)
         cache.set("key1", "value")
         assert cache.get("key1") is None  # 已过期
 

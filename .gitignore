@@ -3,6 +3,8 @@
 
 # 敏感信息（API Key 等）
 .env
+.env.*
+!.env.example
 
 # Python
 __pycache__/

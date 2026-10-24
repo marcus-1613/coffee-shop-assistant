@@ -15,6 +15,10 @@
   padding: 20px 24px;
   border-bottom: 1px solid #eee;
   background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
 }
 
 .header h1 {
@@ -28,6 +32,50 @@
   margin: 6px 0 0;
   font-size: 13px;
   color: #888;
+}
+
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.user-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #555;
+}
+
+.ghost-button,
+.primary-button,
+.close-button,
+.form-submit,
+.mode-switch {
+  font: inherit;
+  cursor: pointer;
+}
+
+.ghost-button,
+.primary-button {
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.ghost-button {
+  color: #534ab7;
+  border: 1px solid #ddd9f2;
+  background: #fff;
+}
+
+.primary-button {
+  color: #fff;
+  border: 1px solid #534ab7;
+  background: #534ab7;
 }
 
 .chat {
@@ -409,6 +457,155 @@
   cursor: not-allowed;
 }
 
+/* ===== 登录与历史记录 ===== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(28, 25, 48, 0.38);
+  backdrop-filter: blur(3px);
+}
+
+.modal-card {
+  width: min(100%, 460px);
+  max-height: min(82vh, 720px);
+  overflow-y: auto;
+  padding: 22px;
+  border: 1px solid #e5e5f0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 20px 60px rgba(38, 33, 92, 0.2);
+}
+
+.history-card {
+  width: min(100%, 680px);
+}
+
+.modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.modal-heading h2 {
+  margin: 0;
+  color: #26215c;
+  font-size: 18px;
+}
+
+.modal-heading p {
+  margin: 6px 0 0;
+  color: #888;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.close-button {
+  border: 0;
+  background: transparent;
+  color: #888;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 6px;
+  color: #555;
+  font-size: 13px;
+}
+
+.auth-form input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  outline: none;
+}
+
+.auth-form input:focus {
+  border-color: #534ab7;
+}
+
+.form-error {
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #a32d2d;
+  background: #fcebeb;
+  font-size: 12px;
+}
+
+.form-submit {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 9px;
+  color: #fff;
+  background: #534ab7;
+}
+
+.form-submit:disabled {
+  background: #aaa;
+}
+
+.mode-switch {
+  width: 100%;
+  margin-top: 12px;
+  border: 0;
+  background: transparent;
+  color: #534ab7;
+  font-size: 12px;
+}
+
+.history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.history-item {
+  padding: 12px;
+  border: 1px solid #e5e5f0;
+  border-radius: 10px;
+  background: #fafafc;
+}
+
+.history-question {
+  margin-bottom: 6px;
+  color: #333;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.history-answer {
+  color: #666;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.history-item time {
+  display: block;
+  margin-top: 7px;
+  color: #aaa;
+  font-size: 11px;
+}
+
+.history-empty {
+  padding: 28px 10px;
+  color: #999;
+  text-align: center;
+  font-size: 13px;
+}
+
 /* ===== 移动端适配 ===== */
 @media (max-width: 600px) {
   .app {
@@ -417,10 +614,19 @@
 
   .header {
     padding: 14px 16px;
+    align-items: flex-start;
   }
 
   .header h1 {
     font-size: 18px;
+  }
+
+  .header p {
+    max-width: 185px;
+  }
+
+  .user-name {
+    display: none;
   }
 
   .chat {

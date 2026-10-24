@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 
 // 示例问题卡片（空状态引导：让店长一眼知道"能问什么"）
@@ -13,7 +13,7 @@ const EXAMPLE_QUESTIONS = [
 // 能力披露（告诉店长边界，降低预期）
 const CAPABILITIES = [
   '用大白话查询经营数据（销量 / 毛利 / 会员）',
-  '结合实时天气预测，给出备货建议',
+  '结合天气预报和历史销量，辅助分析备货',
   '查询全球疫情数据（国家现状 / 历史趋势）',
   '自动拆解复杂问题、多数据源协同分析',
 ]
@@ -23,19 +23,46 @@ function App() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [freshness, setFreshness] = useState(null) // 数据新鲜度
-  const bottomRef = useRef(null)
+  const [authOpen, setAuthOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyItems, setHistoryItems] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [token, setToken] = useState(() => localStorage.getItem('cafe_auth_token') || '')
+  const [currentUser, setCurrentUser] = useState(null)
+  const [bottomNode, setBottomNode] = useState(null)
 
   // 匿名会话标识：一次浏览器会话内固定，让多轮追问能记住上下文
-  const sessionIdRef = useRef(null)
-  if (sessionIdRef.current === null) {
-    sessionIdRef.current = localStorage.getItem('cafe_session_id') || crypto.randomUUID()
-    localStorage.setItem('cafe_session_id', sessionIdRef.current)
-  }
+  const [sessionId] = useState(() => {
+    const existing = localStorage.getItem('cafe_session_id')
+    const value = existing || crypto.randomUUID()
+    localStorage.setItem('cafe_session_id', value)
+    return value
+  })
 
   // 自动滚动到底部
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    bottomNode?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, bottomNode])
+
+  // 用已保存的 Token 恢复登录状态；失效 Token 会被清理。
+  useEffect(() => {
+    if (!token) {
+      return
+    }
+    fetch('/api/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((resp) => {
+        if (!resp.ok) throw new Error('登录已过期')
+        return resp.json()
+      })
+      .then(setCurrentUser)
+      .catch(() => {
+        localStorage.removeItem('cafe_auth_token')
+        setToken('')
+        setCurrentUser(null)
+      })
+  }, [token])
 
   // 启动时拉取数据新鲜度（能力披露的一部分）
   useEffect(() => {
@@ -57,9 +84,16 @@ function App() {
     try {
       const resp = await fetch('/api/chat/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, session_id: sessionIdRef.current }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ question, session_id: sessionId }),
       })
+
+      if (!resp.ok) {
+        throw new Error(`请求失败（HTTP ${resp.status}）`)
+      }
 
       const reader = resp.body.getReader()
       const decoder = new TextDecoder()
@@ -137,11 +171,62 @@ function App() {
     })
   }
 
+  const handleAuthenticated = (accessToken, username) => {
+    localStorage.setItem('cafe_auth_token', accessToken)
+    setToken(accessToken)
+    setCurrentUser({ username })
+    setAuthOpen(false)
+  }
+
+  const logout = () => {
+    localStorage.removeItem('cafe_auth_token')
+    setToken('')
+    setCurrentUser(null)
+    setHistoryItems([])
+    setHistoryOpen(false)
+  }
+
+  const openHistory = async () => {
+    if (!token) {
+      setAuthOpen(true)
+      return
+    }
+    setHistoryOpen(true)
+    setHistoryLoading(true)
+    try {
+      const resp = await fetch('/api/history', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!resp.ok) throw new Error('无法读取历史记录')
+      const data = await resp.json()
+      setHistoryItems(data.items || [])
+    } catch (err) {
+      setHistoryItems([{ id: 'error', question: '读取失败', answer: err.message }])
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
   return (
     <div className="app">
       <header className="header">
-        <h1>咖啡店经营助手</h1>
-        <p>店长的数据副手：查销量、看毛利、结合天气给备货建议</p>
+        <div>
+          <h1>咖啡店经营助手</h1>
+          <p>店长的数据副手：查销量、看毛利、结合天气辅助备货分析</p>
+        </div>
+        <div className="user-actions">
+          <button className="ghost-button" onClick={openHistory}>
+            历史记录
+          </button>
+          {currentUser ? (
+            <>
+              <span className="user-name">{currentUser.username}</span>
+              <button className="ghost-button" onClick={logout}>退出</button>
+            </>
+          ) : (
+            <button className="primary-button" onClick={() => setAuthOpen(true)}>登录</button>
+          )}
+        </div>
       </header>
 
       <div className="chat">
@@ -222,7 +307,7 @@ function App() {
             )}
           </div>
         ))}
-        <div ref={bottomRef} />
+        <div ref={setBottomNode} />
       </div>
 
       <div className="input-bar">
@@ -241,6 +326,148 @@ function App() {
         <button onClick={() => send()} disabled={loading}>
           {loading ? '分析中...' : '发送'}
         </button>
+      </div>
+
+      {authOpen && (
+        <AuthModal
+          onClose={() => setAuthOpen(false)}
+          onAuthenticated={handleAuthenticated}
+        />
+      )}
+      {historyOpen && (
+        <HistoryModal
+          items={historyItems}
+          loading={historyLoading}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+function AuthModal({ onClose, onAuthenticated }) {
+  const [mode, setMode] = useState('login')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const submit = async (event) => {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+    try {
+      if (mode === 'register') {
+        const registered = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        })
+        if (!registered.ok) {
+          const data = await registered.json().catch(() => ({}))
+          throw new Error(data.detail || '注册失败')
+        }
+      }
+
+      const loginBody = new URLSearchParams()
+      loginBody.set('username', username)
+      loginBody.set('password', password)
+      const loggedIn = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: loginBody,
+      })
+      if (!loggedIn.ok) {
+        const data = await loggedIn.json().catch(() => ({}))
+        throw new Error(data.detail || '用户名或密码错误')
+      }
+      const data = await loggedIn.json()
+      onAuthenticated(data.access_token, data.username)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <div className="modal-card auth-card" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="modal-heading">
+          <div>
+            <h2>{mode === 'login' ? '登录' : '注册'}</h2>
+            <p>登录后，对话会绑定到你的账户，并可在其他设备查看历史。</p>
+          </div>
+          <button className="close-button" onClick={onClose} aria-label="关闭">×</button>
+        </div>
+        <form onSubmit={submit} className="auth-form">
+          <label>
+            用户名
+            <input
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              minLength={3}
+              maxLength={50}
+              autoComplete="username"
+              required
+            />
+          </label>
+          <label>
+            密码
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              minLength={8}
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              required
+            />
+          </label>
+          {error && <div className="form-error">{error}</div>}
+          <button className="form-submit" disabled={submitting}>
+            {submitting ? '处理中...' : mode === 'login' ? '登录' : '注册并登录'}
+          </button>
+        </form>
+        <button
+          className="mode-switch"
+          onClick={() => {
+            setMode(mode === 'login' ? 'register' : 'login')
+            setError('')
+          }}
+        >
+          {mode === 'login' ? '没有账号？注册' : '已有账号？登录'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function HistoryModal({ items, loading, onClose }) {
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <div className="modal-card history-card" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="modal-heading">
+          <div>
+            <h2>历史记录</h2>
+            <p>仅展示当前账户的会话。</p>
+          </div>
+          <button className="close-button" onClick={onClose} aria-label="关闭">×</button>
+        </div>
+        {loading && <div className="history-empty">加载中...</div>}
+        {!loading && items.length === 0 && (
+          <div className="history-empty">还没有历史记录，先问一个问题吧。</div>
+        )}
+        <div className="history-list">
+          {items.map((item) => (
+            <article className="history-item" key={item.id}>
+              <div className="history-question">{item.question}</div>
+              <div className="history-answer">{item.answer || '尚未生成回答'}</div>
+              {item.created_at && (
+                <time>{new Date(item.created_at).toLocaleString()}</time>
+              )}
+            </article>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -271,7 +498,6 @@ function LineChart({ data, xLabel, yLabel }) {
     const py = H - pad - ((Number(d.value) - min) / range) * (H - pad * 2)
     return [px, py]
   })
-  const path = points.map((p, i) => (i === 0 ? `M ${p[0]} ${p[1]}` : `L ${p[0]} ${p[1]}`)).join(' ')
   // x 轴标签抽样：数据点多时只显示首/中/尾，避免重叠
   const labelStep = Math.max(1, Math.floor(data.length / 6))
 
@@ -310,7 +536,7 @@ function BarChart({ data, xLabel, yLabel }) {
   const rotate = data.length > 5 || labelLen > 4
   return (
     <div className="chart">
-      <div className="chart-title">{yLabel} 对比</div>
+      <div className="chart-title">{yLabel} 对比 · {xLabel}</div>
       <svg viewBox={`0 0 ${W} ${H}`} className="chart-svg">
         <line x1={pad} y1={H - pad} x2={W - pad} y2={H - pad} stroke="#ddd" strokeWidth="1" />
         <line x1={pad} y1={pad} x2={pad} y2={H - pad} stroke="#ddd" strokeWidth="1" />
